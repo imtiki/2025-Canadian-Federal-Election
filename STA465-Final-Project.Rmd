@@ -1,0 +1,1081 @@
+---
+title: "STA465 Final Project Report"
+author: "Imtiaz Kidwai"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{css echo=FALSE}
+body {
+background-color: #ccc1a8;
+font-family: "Garamond", Times, serif;
+font-size: 16px}
+```
+# Spatial Analysis of the 2025 Canadian Federal Election {.tabset}
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+library(tidyverse)
+library(sf)
+library(leaflet)
+library(kableExtra)
+library(htmltools)
+library(htmlwidgets)
+results2025 <- read_delim("data/EventResults.txt", delim = "\t", 
+                          escape_double = FALSE, trim_ws = TRUE)
+
+colnames(results2025) = c("ID", "Electoral District", "Riding_FR", "Type",
+                          "Type_FR",
+                          "Surname", "Middle Name", "Given Name", "Party",
+                          "Party_FR", "Votes", "Vote Share", "rj", "ttlb")
+results2025 = results2025 %>%
+  filter(Type == "preliminary") %>%
+  select(ID, `Electoral District`, Party, Votes, `Vote Share`)
+lpc2025 = results2025 %>% 
+  filter(Party == "Liberal") %>%
+  mutate(lpc_candidate = TRUE)
+cpc2025 = results2025 %>% 
+  filter(Party == "Conservative") %>%
+  mutate(cpc_candidate = TRUE)
+ndp2025 = results2025 %>% 
+  filter(Party == "NDP-New Democratic Party") %>%
+  mutate(ndp_candidate = TRUE)
+bq2025 = results2025 %>% 
+  filter(Party == "Bloc Québécois") %>%
+  mutate(bq_candidate = TRUE)
+gpc2025 = results2025 %>% 
+  filter(Party == "Green Party") %>%
+  mutate(gpc_candidate = TRUE)
+
+missing_lpc = data.frame(ID  = setdiff(results2025$ID, lpc2025$ID),
+                         "Electoral District" = setdiff(
+                           results2025$`Electoral District`, 
+                           lpc2025$`Electoral District`),
+                         Party = rep("Liberal",
+                                       length(setdiff(results2025$ID,
+                                                    lpc2025$ID))),
+                         Votes = rep(0, length(setdiff(results2025$ID,
+                                                    lpc2025$ID))),
+                         "Vote Share" = rep(0.0, length(setdiff(results2025$ID,
+                                                    lpc2025$ID))),
+                         lpc_candidate = rep(FALSE, length(setdiff(results2025$ID,
+                                                    lpc2025$ID))))
+colnames(missing_lpc) = c("ID", "Electoral District", "Party", "Votes", 
+                          "Vote Share", "lpc_candidate")
+lpc2025 = rbind(lpc2025, missing_lpc)
+
+missing_cpc = data.frame(ID  = setdiff(results2025$ID, cpc2025$ID),
+                         `Electoral District` = setdiff(
+                           results2025$`Electoral District`, 
+                           cpc2025$`Electoral District`),
+                         Party = rep("Liberal",
+                                     length(setdiff(results2025$ID,
+                                                  cpc2025$ID))),
+                         Votes = rep(0, length(setdiff(results2025$ID,
+                                                     cpc2025$ID))),
+                         `Vote Share` = rep(0.0, length(setdiff(results2025$ID,
+                                                              cpc2025$ID))),
+                         cpc_candidate = rep(FALSE, length(setdiff(results2025$ID,
+                                                                 cpc2025$ID))))
+colnames(missing_cpc) = c("ID", "Electoral District", "Party", "Votes", 
+                          "Vote Share", "cpc_candidate")
+cpc2025 = rbind(cpc2025, missing_cpc)
+
+missing_ndp = data.frame(ID  = setdiff(results2025$ID, ndp2025$ID),
+                         `Electoral District` = setdiff(
+                           results2025$`Electoral District`, 
+                           ndp2025$`Electoral District`),
+                         Party = rep("Liberal",
+                                     length(setdiff(results2025$ID,
+                                                  ndp2025$ID))),
+                         Votes = rep(0, length(setdiff(results2025$ID,
+                                                     ndp2025$ID))),
+                         `Vote Share` = rep(0.0, length(setdiff(results2025$ID,
+                                                              ndp2025$ID))),
+                         ndp_candidate = rep(FALSE, length(setdiff(results2025$ID,
+                                                                 ndp2025$ID))))
+colnames(missing_ndp) = c("ID", "Electoral District", "Party", "Votes", 
+                          "Vote Share", "ndp_candidate")
+ndp2025 = rbind(ndp2025, missing_ndp)
+missing_bq = data.frame(ID  = setdiff(results2025$ID, bq2025$ID),
+                         `Electoral District` = setdiff(
+                           results2025$`Electoral District`, 
+                           bq2025$`Electoral District`),
+                         Party = rep("Liberal",
+                                     length(setdiff(results2025$ID,
+                                                  bq2025$ID))),
+                         Votes = rep(0, length(setdiff(results2025$ID,
+                                                     bq2025$ID))),
+                         `Vote Share` = rep(0.0, length(setdiff(results2025$ID,
+                                                              bq2025$ID))),
+                         bq_candidate = rep(FALSE, length(setdiff(results2025$ID,
+                                                                 bq2025$ID))))
+colnames(missing_bq) = c("ID", "Electoral District", "Party", "Votes", 
+                          "Vote Share", "bq_candidate")
+bq2025 = rbind(bq2025, missing_bq)
+
+missing_gpc = data.frame(ID  = setdiff(results2025$ID, gpc2025$ID),
+                         `Electoral District` = setdiff(
+                           results2025$`Electoral District`, 
+                           gpc2025$`Electoral District`),
+                         Party = rep("Liberal",
+                                     length(setdiff(results2025$ID,
+                                                  gpc2025$ID))),
+                         Votes = rep(0, length(setdiff(results2025$ID,
+                                                     gpc2025$ID))),
+                         `Vote Share` = rep(0.0, length(setdiff(results2025$ID,
+                                                              gpc2025$ID))),
+                         gpc_candidate = rep(FALSE, length(setdiff(results2025$ID,
+                                                                 gpc2025$ID))))
+colnames(missing_gpc) = c("ID", "Electoral District", "Party", "Votes", 
+                          "Vote Share", "gpc_candidate")
+gpc2025 = rbind(gpc2025, missing_gpc)
+lpc2025 = lpc2025 %>%
+  select(ID, `Electoral District`, Votes, `Vote Share`, lpc_candidate)
+colnames(lpc2025) = c("ID", "Electoral District", "LPC Votes", "LPC Vote Share",
+                      "lpc_candidate")
+
+cpc2025 = cpc2025 %>%
+  select(`Electoral District`, Votes, `Vote Share`, cpc_candidate)
+colnames(cpc2025) = c("Electoral District", "CPC Votes", "CPC Vote Share",
+                      "cpc_candidate")
+ndp2025 = ndp2025 %>%
+  select(`Electoral District`, Votes, `Vote Share`, ndp_candidate)
+colnames(ndp2025) = c("Electoral District", "NDP Votes", "NDP Vote Share",
+                      "ndp_candidate")
+bq2025 = bq2025 %>%
+  select(`Electoral District`, Votes, `Vote Share`, bq_candidate)
+colnames(bq2025) = c("Electoral District", "BQ Votes", "BQ Vote Share",
+                      "bq_candidate")
+gpc2025 = gpc2025 %>%
+  select(`Electoral District`, Votes, `Vote Share`, gpc_candidate)
+colnames(gpc2025) = c("Electoral District", "GPC Votes", "GPC Vote Share",
+                      "gpc_candidate")
+
+election2025 = left_join(lpc2025, cpc2025, by = "Electoral District")
+election2025 = left_join(election2025, ndp2025, by = "Electoral District")
+election2025 = left_join(election2025, bq2025, by = "Electoral District")
+election2025 = left_join(election2025, gpc2025, by = "Electoral District")
+
+winning_party = c()
+winning_vote_share = c()
+for (i in 1:343){
+  w = max(unlist(c(election2025[i,4], election2025[i,7], election2025[i,10],
+            election2025[i,13], election2025[i,16])))
+  v = max(unlist(c(election2025[i,3], election2025[i,6], election2025[i,9],
+            election2025[i,12], election2025[i,15])))
+  winning_vote_share = c(winning_vote_share, w)
+  if (v == unlist(election2025[i,3])) {
+    winning_party = c(winning_party, "LPC")
+  }
+  if (v == unlist(election2025[i,6])) {
+    winning_party = c(winning_party, "CPC")
+  }
+  if (v == unlist(election2025[i,9])) {
+    winning_party = c(winning_party, "NDP")
+  }
+  if (v == unlist(election2025[i,12])) {
+    winning_party = c(winning_party, "BQ")
+  }
+  if (v == unlist(election2025[i,15])) {
+    winning_party = c(winning_party, "GPC")
+  }
+}
+election2025$winning_party = winning_party
+election2025$winning_vote_share = winning_vote_share
+
+boundaries2023 = st_read("data/FED_CA_2023_EN-SHP/FED_CA_2023_EN.shp")
+boundaries2023 = boundaries2023 %>%
+  st_transform(crs = 4326,method = "NAD_1983_CSRS_To_WGS_1984_2")
+colnames(boundaries2023) = c("ID", "Electoral District", "ED_F", "reporder",
+                             "SHAPE_AREA", "SHAPE_LEN", "geometry")
+
+election2025 = election2025[order(election2025$ID),]
+parties = c( "#00F7FF", "blue", "#29D462", "red", "orange")
+cd1 <- read_csv("data/98-401-X2021029_eng_CSV/98-401-X2021029_English_CSV_data.csv")
+cd1 = cd1 %>%
+  filter(GEO_LEVEL == "Federal electoral district (2023 Representation Order)")
+
+
+total = cd1 %>% filter(CHARACTERISTIC_NAME == "Total - Age groups of the population - 100% data")
+total = total %>%
+  select(c(3,5, 12, 14, 16, 18, 20, 22))
+twenty_twenty4 = cd1 %>% filter(CHARACTERISTIC_NAME == "20 to 24 years") %>%
+    select(c(5, 12, 14, 16, 18, 20, 22))
+twenty5_twenty9 = cd1 %>% filter(CHARACTERISTIC_NAME == "25 to 29 years") %>%
+    select(c(5, 12, 14, 16, 18, 20, 22))
+thirty_thirty4 = cd1 %>% filter(CHARACTERISTIC_NAME == "30 to 34 years") %>%
+    select(c(5, 12, 14, 16, 18, 20, 22))
+forty_forty4 = cd1 %>% filter(CHARACTERISTIC_NAME == "40 to 44 years") %>%
+    select(c(5, 12, 14, 16, 18, 20, 22))
+fifty_fifty4 = cd1 %>% filter(CHARACTERISTIC_NAME == "50 to 54 years") %>%
+    select(c(5, 12, 14, 16, 18, 20, 22))
+sixty_sixty4 = cd1 %>% filter(CHARACTERISTIC_NAME == "60 to 64 years") %>%
+    select(c(5, 12, 14, 16, 18, 20, 22))
+thirty5_thirty9 = cd1 %>% filter(CHARACTERISTIC_NAME == "35 to 39 years") %>%
+    select(c(5, 12, 14, 16, 18, 20, 22))
+forty5_forty9 = cd1 %>% filter(CHARACTERISTIC_NAME == "45 to 49 years") %>%
+    select(c(5, 12, 14, 16, 18, 20, 22))
+fifty5_fifty9 = cd1 %>% filter(CHARACTERISTIC_NAME == "55 to 59 years") %>%
+    select(c(5, 12, 14, 16, 18, 20, 22))
+sixty5_over = cd1 %>% filter(CHARACTERISTIC_ID == 24) %>%
+    select(c(5, 12, 18))
+colnames(sixty5_over) = c("GEO_NAME", "Total_65_above", "Rate_65_above")
+
+men = data.frame(
+  GEO_NAME = total$GEO_NAME,
+  total_men = total$`C2_COUNT_MEN+`,
+  rate_men = round(total$`C2_COUNT_MEN+` * 100 / total$C1_COUNT_TOTAL, 3)
+)
+women = data.frame(
+  GEO_NAME = total$GEO_NAME,
+  total_women = total$`C3_COUNT_WOMEN+`,
+  rate_women = round(total$`C3_COUNT_WOMEN+` * 100 / total$C1_COUNT_TOTAL, 3)
+)
+t20_29 = data.frame(
+  GEO_NAME = twenty_twenty4$GEO_NAME,
+  Total_20_29 = twenty_twenty4$C1_COUNT_TOTAL + twenty5_twenty9$C1_COUNT_TOTAL,
+  Rate_20_29 = round(((twenty_twenty4$C1_COUNT_TOTAL + 
+                  twenty5_twenty9$C1_COUNT_TOTAL) / total$C1_COUNT_TOTAL)*100, 3)
+)
+t30_49 = data.frame(
+  GEO_NAME = twenty_twenty4$GEO_NAME,
+  Total_30_49 = thirty_thirty4$C1_COUNT_TOTAL + thirty5_thirty9$C1_COUNT_TOTAL +
+    forty_forty4$C1_COUNT_TOTAL + forty5_forty9$C1_COUNT_TOTAL,
+  Rate_30_49 = round((thirty_thirty4$C1_COUNT_TOTAL + thirty5_thirty9$C1_COUNT_TOTAL +
+    forty_forty4$C1_COUNT_TOTAL + forty5_forty9$C1_COUNT_TOTAL) /( total$C1_COUNT_TOTAL)*100, 3)
+)
+t50_65 = data.frame(
+  GEO_NAME = twenty_twenty4$GEO_NAME,
+  Total_50_65 = fifty5_fifty9$C1_COUNT_TOTAL + fifty_fifty4$C1_COUNT_TOTAL +
+    sixty_sixty4$C1_COUNT_TOTAL,
+  Rate_50_65 = round((fifty5_fifty9$C1_COUNT_TOTAL + fifty_fifty4$C1_COUNT_TOTAL +
+    sixty_sixty4$C1_COUNT_TOTAL) /( total$C1_COUNT_TOTAL)*100, 3)
+)
+
+age_groups = left_join(t20_29, t30_49, by = "GEO_NAME")
+age_groups = left_join(age_groups, t50_65, by = "GEO_NAME")
+age_groups = left_join(age_groups, sixty5_over, by = "GEO_NAME")
+
+sex = left_join(men, women, by = "GEO_NAME")
+
+household_size = cd1 %>% filter(CHARACTERISTIC_NAME == "Average household size") %>%
+  select(5,12)
+colnames(household_size) = c("GEO_NAME", "Average Household Size")
+
+income = cd1 %>% filter(CHARACTERISTIC_NAME == "Median total income in 2020 among recipients ($)") %>%
+  select(5,12)
+colnames(income) = c("GEO_NAME", "Average Income")
+first_generation = cd1 %>% 
+  filter(CHARACTERISTIC_NAME == "First generation") %>%
+  select(5,12,18)
+colnames(first_generation) = c("GEO_NAME", "First Generation", "First Generation Rate")
+second_generation = cd1 %>% 
+  filter(CHARACTERISTIC_NAME == "Second generation") %>%
+  select(5,12,18)
+colnames(second_generation) = c("GEO_NAME", "Second Generation", "Second Generation Rate")
+third_generation = cd1 %>% 
+  filter(CHARACTERISTIC_NAME == "Third generation or more") %>%
+  select(5,12,18)
+colnames(third_generation) = c("GEO_NAME", "Third Generation", "Third Generation Rate")
+
+generations = left_join(first_generation, second_generation, by = "GEO_NAME")
+generations = left_join(generations, third_generation, by = "GEO_NAME")
+
+
+visible_minority = cd1 %>%
+  filter(CHARACTERISTIC_NAME == "Total visible minority population") %>%
+  select(5,12,18)
+colnames(visible_minority) = c("GEO_NAME", "Visible Minority Population", "Visible Minority Population Proportion")
+
+
+
+post_secondary_education = cd1 %>%
+  filter(CHARACTERISTIC_ID == 2001) %>%
+  select(5,12,18)
+colnames(post_secondary_education) = c("GEO_NAME", "Post Secondary Education", "Postsecondary certificate, diploma or degree Proportion")
+features = left_join(age_groups, generations, by = "GEO_NAME")
+features = left_join(features, household_size, by = "GEO_NAME")
+features = left_join(features, sex, by = "GEO_NAME")
+features = left_join(features, post_secondary_education, by = "GEO_NAME")
+features = left_join(features, household_size, by = "GEO_NAME")
+features = left_join(features, visible_minority, by = "GEO_NAME")
+write.csv(features, "data/census_features_2025.csv")
+features = read.csv("data/census_features_2025.csv")
+features$X = NULL
+
+index <- features$GEO_NAME %in% setdiff(features$GEO_NAME, election2025$`Electoral District`)
+features$GEO_NAME[index] <- setdiff(election2025$`Electoral District`, features$GEO_NAME)[match(features$GEO_NAME[index], setdiff(features$GEO_NAME, election2025$`Electoral District`))]
+features$`Electoral District` = features$GEO_NAME
+features$GEO_NAME = NULL
+df = left_join(features, election2025, by = "Electoral District")
+df = left_join(df, boundaries2023, by = "Electoral District")
+df = st_as_sf(df)
+df = st_transform(df, crs = 3347)
+
+colnames(df) = c("Total_20_29", "Proportion of population aged between 20 and 29", "Total_30_39", "Proportion of population aged between 30 and 49", 
+                 "Total_50_65", "Proportion of population aged between 50 and 65", "Total_65_above", "Proportion of population aged 65 and above", "First Generation", "First Generation Proportion", "Second Generation", "Second Generation Proportion", "Third Generation and above", "Third Generation and above Proportion", "Average Household Size", "Total Men", "Total Men Proportion", "Total Women", "Total Women Proportion", "Post Secondary Education", "Post Secondary Education Proportion", "A", "Visible Minority", "Visible Minority Proportion", "Electoral District", "ID", "LPC Votes", "LPC Vote Share", "lpc_candidate","CPC Votes", "CPC Vote Share", "cpc_candidate", "NDP Votes", "NDP Vote Share", "ndp_candidate", "BQ Votes", "BQ Vote Share", "bq_candidate", "GPC Votes", "GPC Vote Share", "gpc_candidate", "winning_party", "winning_vote_share", "idy", "ED_F", "reporder", "SHAPE_AREA", "SHAPE_LEN", "geometry")
+```
+
+## Introduction
+
+Canada is a large country with a lot of diversity. Voting patterns in Canada are not uniform across groups of people. Some groups are more likely to vote for a particular political party than other groups. Furthermore, different parts of the country exhibit different voting patterns. For example, Alberta is infamous for for its loyalty to the Conservative Party of Canada, but the CPC's performace in Quebec is usually lacklustre compared to other parties. Investigating these patterns is crucial for parties to allocate their campaigning resources come election time. They are also crucial for us to investigate as a whole, as it helps us understand how the parties that govern us can improve their policies to better suit particular groups. 
+
+I have datasets that include a shape file for electoral districts under the 2023 federal electoral boundaries, voting results for the 2025 federal elections, and 2021 census data for these electoral districts. The research goal of this project is to analyze the effect of certain features on vote share of the three major parties in the 2025 federal election: Liberal Party of Canada (LPC), Conservative Party of Canada (CPC) and the New Democratic Party (NDP). I want to analyze the demographics the parties enjoyed support from in the most recent election and compare the electoral performance with certain groups across the three major parties. Figure 1 maps the result of the 2025 Canadian federal election.
+
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, fig.cap = "Figure 1: Result of the 2025 Canadian Federal Election"}
+knitr::include_url("maps/election_results.html", height = "500px")
+```
+
+
+Figure 2 displays a map of the vote share for each of the three major parties.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, fig.cap = "Figure 2: Map of vote share for each of the three major parties "}
+knitr::include_url("maps/results.html", height = "500px")
+```
+
+Table 1 provides a summary of the variables that will be used in this analysis. 
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+variables = list(df$`LPC Vote Share`, df$`CPC Vote Share`, df$`NDP Vote Share`, df$`Proportion of population aged between 20 and 29`, df$`Proportion of population aged between 30 and 49`, df$`Proportion of population aged between 50 and 65`, df$`Proportion of population aged 65 and above`, df$`First Generation Proportion`, df$`Second Generation Proportion`, df$`Third Generation and above Proportion`, df$`Average Household Size`, df$`Total Men Proportion`, df$`Total Women Proportion`, df$`Post Secondary Education Proportion`, df$`Visible Minority Proportion`)
+summary = data.frame(
+  variables = c("LPC Vote Share", "CPC Vote Share", "NDP Vote Share", "Proportion of population aged between 20 and 29", "Proportion of population aged between 30 and 49", "Proportion of population aged between 50 and 65", "Proportion of population aged 65 and above", "First Generation Proportion", "Second Generation Proportion", "Third Generation and above Proportion", "Average Household Size", "Total Men Proportion", "Total Women Proportion", "Post Secondary Education Proportion", "Visible Minority Proportion"),
+  mean = sapply(variables, mean),
+  sd = sapply(variables, sd),
+  min = sapply(variables, min),
+  max = sapply(variables, max),
+  median = sapply(variables, median)
+)
+summary %>%
+  kbl(col.names = c("Variable", "Mean", "Standard Deviation", "Minimum", "Maximum", "Median"), caption = "Table 1: Summary of all the variables of interest") %>%
+  kable_material_dark()
+
+```
+
+
+## Methods {.tabset}
+
+### Analysis of Spatial Autocorrelation
+I want to determine what the spatial pattern looks like for the vote share of the three major parties. I expect significant spatial clustering, and analyzing the Moran's I statistic will help us verify my hypothesis.
+
+To test for spatial clustering, I need to define adjacency matrices with associated weight matrices. I consider five different adjacency matrices:
+
+Queen: Two districts are neighbours if they share a common singular point.
+
+Rook: Two districts are neighbours if they share a common border.
+
+3-nearest neighbours: A district's neighbours are the 3 districts with the closest centroids.
+
+5-nearest neighbours:  A district's neighbours are the 5 districts with the closest centroids.
+
+I applied row-standardized weights to all five adjacency matrices. 
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, fig.cap = "Figure 3: Map of neighbours based on the different adjacency matrices."}
+knitr::include_url("maps/neighbours.html", height = "500px")
+```
+
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+library(spdep)
+df_map = st_transform(df, crs = 3857)
+queen = poly2nb(df, queen = TRUE)
+
+
+rook = poly2nb(df, queen = FALSE)
+
+centroids = st_centroid(df)
+coords = st_coordinates(centroids)
+kn3 = knn2nb(knearneigh(coords, k=3))
+kn5 = knn2nb(knearneigh(coords, k=5))
+
+queen_w = nb2listw(queen, style = "W")
+rook_w = nb2listw(rook, style = "W")
+kn3_w = nb2listw(kn3, style = "W")
+kn5_w = nb2listw(kn5, style = "W")
+
+```
+
+I started with global Moran's I. It defines spatial similarities via deviations from the mean. A global Moran's I test has a test statistic $\frac{I - \mathbb{E}[I]}{\sqrt{Var(I)}}$, and the null hypothesis is that there is no spatial correlation. Table 2a, 2b and 2c report the test results for each party.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ndp_moran_queen = moran.test(df$`NDP Vote Share`, queen_w)
+ndp_moran_rook = moran.test(df$`NDP Vote Share`, rook_w)
+ndp_moran_kn3 = moran.test(df$`NDP Vote Share`, kn3_w)
+ndp_moran_kn5 = moran.test(df$`NDP Vote Share`, kn5_w)
+
+
+lpc_moran_queen = moran.test(df$`LPC Vote Share`, queen_w)
+lpc_moran_rook = moran.test(df$`LPC Vote Share`, rook_w)
+lpc_moran_kn3 = moran.test(df$`LPC Vote Share`, kn3_w)
+lpc_moran_kn5 = moran.test(df$`LPC Vote Share`, kn5_w)
+
+cpc_moran_queen = moran.test(df$`CPC Vote Share`, queen_w)
+cpc_moran_rook = moran.test(df$`CPC Vote Share`, rook_w)
+cpc_moran_kn3 = moran.test(df$`CPC Vote Share`, kn3_w)
+cpc_moran_kn5 = moran.test(df$`CPC Vote Share`, kn5_w)
+
+
+lpc_moran_table =data.frame(
+  Neighbourhood =c("Queen", "Rook", "KN3", "KN5"),
+  Moran_I = round(c(lpc_moran_queen$estimate[1], lpc_moran_rook$estimate[1],
+                    lpc_moran_kn3$estimate[1], lpc_moran_kn5$estimate[1]) , 3),
+  p_value = round(c(lpc_moran_queen$p.value, lpc_moran_rook$p.value,
+                    lpc_moran_kn3$p.value, lpc_moran_kn5$p.value) , 3)
+)
+lpc_moran_table %>%
+  kbl(col.names = c("Neighbourhood Type", "Moran's I statistic", "p-value"), caption = "Table 2a: Global Moran's I test results for LPC vote share") %>%
+  kable_material_dark()
+ndp_moran_table =data.frame(
+  Neighbourhood =c("Queen", "Rook", "KN3", "KN5"),
+  Moran_I = round(c(ndp_moran_queen$estimate[1], ndp_moran_rook$estimate[1],
+                    ndp_moran_kn3$estimate[1], ndp_moran_kn5$estimate[1]) , 3),
+  p_value = round(c(ndp_moran_queen$p.value, ndp_moran_rook$p.value,
+                    ndp_moran_kn3$p.value, ndp_moran_kn5$p.value) , 3)
+)
+ndp_moran_table %>%
+  kbl(col.names = c("Neighbourhood Type", "Moran's I statistic", "p-value"), caption = "Table 2b: Global Moran's I test results for NDP vote share") %>%
+   kable_material_dark()
+
+cpc_moran_table =data.frame(
+  Neighbourhood =c("Queen", "Rook", "KN3", "KN5"),
+  Moran_I = round(c(cpc_moran_queen$estimate[1], cpc_moran_rook$estimate[1],
+                    cpc_moran_kn3$estimate[1], cpc_moran_kn5$estimate[1]) , 3),
+  p_value = round(c(cpc_moran_queen$p.value, cpc_moran_rook$p.value,
+                    cpc_moran_kn3$p.value, cpc_moran_kn5$p.value) , 3)
+)
+cpc_moran_table %>%
+  kbl(col.names = c("Neighbourhood Type", "Moran's I statistic", "p-value"), caption = "Table 2c: Global Moran's I test results for CPC vote share") %>%
+  kable_material_dark()
+
+
+```
+
+We see that Moran's I statistic is positive for every adjacency matrix for every party's vote share, so we can conclude that party vote shares are displaying clustering. The p-values are all less than 0.05 so I reject the null hypothesis that the spatial correlation is random.
+
+To further compare and contrast, we can look at the lag structure of the statistic by analyzing correlograms in figures 4, 5 and 6. 
+
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+
+c1 = sp.correlogram(queen, df$`NDP Vote Share`, order=10, method="I", style="W", randomisation=T, zero.policy=TRUE)
+
+c2 = sp.correlogram(queen, df$`LPC Vote Share`, order=10, method="I", style="W", randomisation=T, zero.policy=TRUE)
+
+c3 = sp.correlogram(queen, df$`CPC Vote Share`, order=10, method="I", style="W", randomisation=T, zero.policy=TRUE)
+
+c4 = sp.correlogram(kn3, df$`NDP Vote Share`, order = 10, method="I", style="W", randomisation=T, zero.policy=TRUE)
+
+c5 = sp.correlogram(kn3, df$`LPC Vote Share`, order=10, method="I", style="W", randomisation=T, zero.policy=TRUE)
+
+c6 = sp.correlogram(kn3, df$`CPC Vote Share`, order=10, method="I", style="W", randomisation=T, zero.policy=TRUE)
+
+c7 = sp.correlogram(rook, df$`NDP Vote Share`, order=10, method="I", style="W", randomisation=T, zero.policy=TRUE)
+
+c8 = sp.correlogram(rook, df$`LPC Vote Share`, order=10, method="I", style="W", randomisation=T, zero.policy=TRUE)
+
+c9 = sp.correlogram(rook, df$`CPC Vote Share`, order=10, method="I", style="W", randomisation=T, zero.policy=TRUE)
+
+c10 = sp.correlogram(kn5, df$`NDP Vote Share`, order=10, method="I", style="W", randomisation=T, zero.policy=TRUE)
+
+c11 = sp.correlogram(kn5, df$`LPC Vote Share`, order=10, method="I", style="W", randomisation=T, zero.policy=TRUE)
+
+c12 = sp.correlogram(kn5, df$`CPC Vote Share`, order=10, method="I", style="W", randomisation=T, zero.policy=TRUE)
+
+```
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, fig.cap = "Figure 4: Correlograms for each adjacency matrix for the LPC's vote share"}
+par(mfrow = c(2,2))
+plot(c2, main = "Correllogram, Queen", xlab = "Lag order", ylab = "Moran's I")
+plot(c5, main = "Correllogram, kn3", xlab = "Lag order", ylab = "Moran's I")
+plot(c8, main = "Correllogram, Rook", xlab = "Lag order", ylab = "Moran's I")
+plot(c11, main = "Correllogram, kn5", xlab = "Lag order", ylab = "Moran's I")
+
+
+
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, fig.cap = "Figure 5: Correlograms for each adjacency matrix for the CPC's vote share"}
+par(mfrow = c(2,2))
+plot(c3, main = "Correllogram, Queen", xlab = "Lag order", ylab = "Moran's I")
+plot(c6, main = "Correllogram, kn3", xlab = "Lag order", ylab = "Moran's I")
+plot(c9, main = "Correllogram, Rook", xlab = "Lag order", ylab = "Moran's I")
+plot(c12, main = "Correllogram, kn5", xlab = "Lag order", ylab = "Moran's I")
+
+
+
+```
+
+
+
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, fig.cap = "Figure 6: Correlograms for each adjacency matrix for the NDP's vote share"}
+
+par(mfrow = c(2,2))
+plot(c1, main = "Correllogram, Queen", xlab = "Lag order", ylab = "Moran's I")
+plot(c4, main = "Correllogram, kn3", xlab = "Lag order", ylab = "Moran's I")
+plot(c7, main = "Correllogram, Rook", xlab = "Lag order", ylab = "Moran's I")
+plot(c10, main = "Correllogram, kn5", xlab = "Lag order", ylab = "Moran's I")
+
+
+
+```
+
+
+
+
+We see that the correlograms are similar for all the adjacency matrices. For every party and every adjacency matrix, Moran's I approaches 0 after lag 5 or lag 6. An exception is the NDP's vote share, where the nearest neighbour matrices have correlograms that are still positive after lag 10.
+
+We can also do a Geary c test, which is another test for global association. It helps us identify strong local contrasts. Tables 3a, 3b and 3c report the test results for each party's vote share. 
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ndp_geary_queen = geary.test(df$`NDP Vote Share`, queen_w)
+ndp_geary_rook = geary.test(df$`NDP Vote Share`, rook_w)
+ndp_geary_kn3 = geary.test(df$`NDP Vote Share`, kn3_w)
+ndp_geary_kn5 = geary.test(df$`NDP Vote Share`, kn5_w)
+
+
+lpc_geary_queen = geary.test(df$`LPC Vote Share`, queen_w)
+lpc_geary_rook = geary.test(df$`LPC Vote Share`, rook_w)
+lpc_geary_kn3 = geary.test(df$`LPC Vote Share`, kn3_w)
+lpc_geary_kn5 = geary.test(df$`LPC Vote Share`, kn5_w)
+
+
+cpc_geary_queen = geary.test(df$`CPC Vote Share`, queen_w)
+cpc_geary_rook = geary.test(df$`CPC Vote Share`, rook_w)
+cpc_geary_kn3 = geary.test(df$`CPC Vote Share`, kn3_w)
+cpc_geary_kn5 = geary.test(df$`CPC Vote Share`, kn5_w)
+
+
+library(kableExtra)
+lpc_geary_table =data.frame(
+  Neighbourhood =c("Queen", "Rook", "KN3", "KN5"),
+  geary_I = round(c(lpc_geary_queen$estimate[1], lpc_geary_rook$estimate[1],
+                    lpc_geary_kn3$estimate[1], lpc_geary_kn5$estimate[1]) , 3),
+  p_value = round(c(lpc_geary_queen$p.value, lpc_geary_rook$p.value,
+                    lpc_geary_kn3$p.value, lpc_geary_kn5$p.value) , 3)
+)
+lpc_geary_table %>%
+  kbl(col.names = c("Neighbourhood Type", "Geary's c statistic", "p-value"), caption = "Table 3a: Geary's c test results for LPC vote share") %>%
+  kable_material_dark()
+
+cpc_geary_table =data.frame(
+  Neighbourhood =c("Queen", "Rook", "KN3", "KN5"),
+  geary_I = round(c(cpc_geary_queen$estimate[1], cpc_geary_rook$estimate[1],
+                    cpc_geary_kn3$estimate[1], cpc_geary_kn5$estimate[1]) , 3),
+  p_value = round(c(cpc_geary_queen$p.value, cpc_geary_rook$p.value,
+                    cpc_geary_kn3$p.value, cpc_geary_kn5$p.value) , 3)
+)
+cpc_geary_table %>%
+  kbl(col.names = c("Neighbourhood Type", "Geary's c statistic", "p-value"), caption = "Table 3b: Geary's c test results for CPC vote share") %>%
+  kable_material_dark()
+ndp_geary_table =data.frame(
+  Neighbourhood =c("Queen", "Rook", "KN3", "KN5"),
+  geary_I = round(c(ndp_geary_queen$estimate[1], ndp_geary_rook$estimate[1],
+                    ndp_geary_kn3$estimate[1], ndp_geary_kn5$estimate[1]) , 3),
+  p_value = round(c(ndp_geary_queen$p.value, ndp_geary_rook$p.value,
+                    ndp_geary_kn3$p.value, ndp_geary_kn5$p.value) , 3)
+)
+ndp_geary_table %>%
+  kbl(col.names = c("Neighbourhood Type", "Geary's c statistic", "p-value"), caption = "Table 3c: Geary's c test results for NDP vote share") %>%
+  kable_material_dark()
+
+
+
+
+```
+
+For vote share for all three parties, the Geary's c statistic is close to 0 for every adjacency matrix with the exception of distance, which is closer to 1, which suggests positive spatial autocorrelation. The p-values are all less than 0.05 so we reject the null hypothesis that spatial autocorrelation is random.
+
+
+Now, I will take a look at local clustering by analyzing local Moran's I. At this point, we're going to pick the queen adjacency matrix since the Moran's I and Geary's c test results are in line with what we expected, and it makes sense to treat any federal districts that share a point with each other as neighbours for my research question. While the nearest neighbours approach was appealing, it did not make sense to me to fix the amount of neighbours for each district. 
+
+Figures 6a, 6b and 6c show the Moran scatterplots for the LPC, CPC and NDP respectively.
+
+
+```{r echo=FALSE, fig.cap=, message=FALSE, warning=FALSE, fig.cap = "Figure 7a: Moran Scatterplot for LPC vote share"}
+knitr::include_graphics("lpc_moran_plot.png")
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, fig.cap = "Figure 7b: Moran Scatterplot for CPC vote share"}
+knitr::include_graphics("cpc_moran_plot.png")
+```
+```{r echo=FALSE, message=FALSE, warning=FALSE, fig.cap = "Figure 7c: Moran Scatterplot for NDP vote share"}
+knitr::include_graphics("ndp_moran_plot.png")
+```
+
+
+Now, we can use local Moran's I to classify neighbourhoods by type of clustering attribute.
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+
+moranLoc_lpc<-localmoran(df$`LPC Vote Share`, queen_w, alternative="two.sided")
+df$Ii_lpc <- moranLoc_lpc[, 1]       # Local Moran's I statistic
+df$Z.Ii_lpc <- moranLoc_lpc[, 4]     # Z-scores (standardized values)
+df$p.value_lpc <- p.adjust(moranLoc_lpc[, 5],method="none")  # p-values
+
+
+moranLoc_cpc<-localmoran(df$`CPC Vote Share`,queen_w, alternative="two.sided")
+df$Ii_cpc <- moranLoc_cpc[, 1]       # Local Moran's I statistic
+df$Z.Ii_cpc <- moranLoc_cpc[, 4]     # Z-scores (standardized values)
+df$p.value_cpc <- p.adjust(moranLoc_cpc[, 5],method="none")  # p-values
+
+
+moranLoc_ndp<-localmoran(df$`NDP Vote Share`,queen_w,  alternative="two.sided")
+df$Ii_ndp <- moranLoc_ndp[, 1]       # Local Moran's I statistic
+df$Z.Ii_ndp <- moranLoc_ndp[, 4]     # Z-scores (standardized values)
+df$p.value_ndp <- p.adjust(moranLoc_ndp[, 5],method="none")  # p-values
+
+df$significant_lpc = df$p.value_lpc<=0.05
+
+clust_lpc.pal <- colorFactor(palette = c("blue", "lightblue", "lightpink","red"),
+                  domain=attributes(moranLoc_lpc)$quadr$mean)
+sig_lpc.pal = colorFactor(c('green','white'), levels=c("TRUE","FALSE"))
+
+df$significant_cpc = df$p.value_cpc<=0.05
+
+clust_cpc.pal <- colorFactor(palette = c("blue", "lightblue", "lightpink","red"),
+                             domain=attributes(moranLoc_cpc)$quadr$mean)
+sig_cpc.pal = colorFactor(c('green','white'), levels=c("TRUE","FALSE"))
+
+df$significant_ndp = df$p.value_ndp<=0.05
+
+clust_ndp.pal <- colorFactor(palette = c("blue", "lightblue", "lightpink","red"),
+                             domain=attributes(moranLoc_ndp)$quadr$mean)
+sig_ndp.pal = colorFactor(c('green','white'), levels=c("TRUE","FALSE"))
+```
+
+
+```{r eval=FALSE, message=FALSE, warning=FALSE, include=FALSE}
+leaflet(df) %>%
+  addProviderTiles('CartoDB.Positron') %>%
+ 
+  addPolygons(fillColor = ~clust_lpc.pal(attributes(moranLoc_lpc)$quadr), 
+              color = "black", weight = 1, opacity = 1, fillOpacity = 0.7,
+              label = ~paste0("Local I: ", round(Ii_lpc,2), "| Electoral District: ", `Electoral District`, "| LPC Vote Share: ", df$`LPC Vote Share`),
+              highlightOptions = highlightOptions(weight = 2, color = "#666", fillOpacity = 0.9),
+              group = "LPC") %>%
+  addPolygons(color = ~sig_lpc.pal(significant_lpc), fill=F, weight=2, group  ="LPC")%>%
+  addPolygons(fillColor = ~clust_cpc.pal(attributes(moranLoc_cpc)$quadr), 
+            color = "black", weight = 1, opacity = 1, fillOpacity = 0.7,
+            label = ~paste0("Local I: ", round(Ii_cpc,2), "| Electoral District: ", `Electoral District`, "| CPC Vote Share: ", df$`CPC Vote Share`),
+            highlightOptions = highlightOptions(weight = 2, color = "#666", fillOpacity = 0.9),
+            group = "CPC") %>%
+  addPolygons(color = ~sig_cpc.pal(significant_cpc), fill=F, weight=2, group  ="CPC")%>%
+  addPolygons(fillColor = ~clust_ndp.pal(attributes(moranLoc_ndp)$quadr), 
+            color = "black", weight = 1, opacity = 1, fillOpacity = 0.7,
+            label = ~paste0("Local I: ", round(Ii_ndp,2), "| Electoral District: ", `Electoral District`, "| NDP Vote Share: ", df$`NDP Vote Share`),
+            highlightOptions = highlightOptions(weight = 2, color = "#666", fillOpacity = 0.9),
+            group = "NDP") %>%
+  addPolygons(color = ~sig_ndp.pal(significant_ndp), fill=F, weight=2, group  ="NDP")%>%
+  leaflet::addLegend(pal = clust_lpc.pal, values = ~attributes(moranLoc_lpc)$quadr$mean, title = "Local Moran's I", opacity = 0.7)
+```
+
+
+```{r eval=FALSE, message=FALSE, warning=FALSE, include=FALSE}
+leaflet(df) %>%
+  addProviderTiles('CartoDB.Positron') %>%
+  
+  addPolygons(fillColor = ~clust_cpc.pal(attributes(moranLoc_cpc)$quadr$mean), 
+              color = "black", weight = 1, opacity = 1, fillOpacity = 0.7,
+              label = ~paste0("LocalI: ", round(Ii_cpc,2), " Electoral District: ", `Electoral District`, " CPC Vote Share: ", df$`LPC Vote Share`),
+              highlightOptions = highlightOptions(weight = 2, color = "#666", fillOpacity = 0.9)) %>%
+  addPolygons(color = ~sig_cpc.pal(significant_cpc), fill=F, weight=2)%>%
+  leaflet::addLegend(pal = clust_cpc.pal, values = ~attributes(moranLoc_cpc)$quadr$mean, title = "Local Moran's I", opacity = 0.7)
+```
+
+
+```{r eval=FALSE, message=FALSE, warning=FALSE, include=FALSE}
+leaflet(df) %>%
+  addProviderTiles('CartoDB.Positron') %>%
+  
+  addPolygons(fillColor = ~clust_ndp.pal(attributes(moranLoc_ndp)$quadr$mean), 
+              color = "black", weight = 1, opacity = 1, fillOpacity = 0.7,
+              label = ~paste0("LocalI: ", round(Ii_ndp,2), " Electoral District: ", `Electoral District`, " NDP Vote Share: ", df$`LPC Vote Share`),
+              highlightOptions = highlightOptions(weight = 2, color = "#666", fillOpacity = 0.9)) %>%
+  addPolygons(color = ~sig_ndp.pal(significant_ndp), fill=F, weight=2)%>%
+  leaflet::addLegend(pal = clust_ndp.pal, values = ~attributes(moranLoc_ndp)$quadr$mean, title = "Local Moran's I", opacity = 0.7)
+```
+
+
+```{r echo=FALSE, message=TRUE, warning=FALSE, fig.cap = "Figure 8: Local Moran's I for all three parties"}
+knitr::include_url("maps/localmoran.html", height = "500px")
+```
+
+Observing Figure 7 for the LPC's vote share, most rural electoral districts are Low-Low, while metropolitan cities like Toronto, Montreal and Vancouver are filled with High-High districts. This is in line with he historical trend of the LPC getting lots of votes in major cities and very few votes from rural parts of the country. In addition, many parts of Atlantic Canada also contain electoral districts in the High-High quadrant. Cities in more historically conservative provinces (Edmonton, Calgary in Alberta, Winnipeg in Manitoba and Regina, Saskatoon in Saskatchewan) have electoral districts in the High-Low quadrant, because these cities have fewer electoral districts and the area around the cities do not vote LPC. There are also a few rural electoral districts that vote LPC and are surrounded by rural districts that do not vote LPC, so they are also in the High-Low quadrant. Meanwhile, districts neighbouring metropolitan cities tend to be in the Low-High quadrants. 
+
+For the CPC's vote share, we can notice the almost exact opposite trend, where large, rural districts are in the High-High quadrant, and downtown cores of cities form low-value clusters. However, some suburban districts around cities form high-value clusters for the CPC's vote share. This is because the suburbs were two-way races between the LPC and CPC at the expense of all the smaller parties, so both the LPC and CPC formed high-value clusters for their own vote shares. I also notice that almost all of Quebec falls under the Low-Low quadrant for the CPC, which makes sense because of the lack of popularity for the CPC in Quebec since the 1980s. 
+
+Lastly, for the NDP's vote share, almost all of Southern Ontario, Quebec and Atlantic Canada barring the major cities are low-value clusters for the NDP's vote share. Outside of this region, rural Canadian districts are generally under the High-High quadrants with the exception of some Western Albertan districts. Downtown cores of the major metropolitan cities generally fall under the High-High quadrant too, and the districts around the downtown core are High-Low.
+
+### Spatial Modelling
+
+I shall now start building spatial regression models for vote share for all three parties. I identified variables of interest in the Introduction section. Using the OLS linear model, I shall analyze the linear relationship between vote share and the covariates. Tables 4a, 4b and 4c show results of the OLS model for the LPC, CPC and NDP vote share respectively.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+library(units)
+library(spatialreg) # for SAR and CAR
+library(spgwr) # for GWR
+library(spaMM) # for mixed effects models
+
+
+ols_lpc = lm(`LPC Vote Share` ~ `Proportion of population aged between 20 and 29`  + `Proportion of population aged between 50 and 65` + `Proportion of population aged 65 and above`  +`First Generation Proportion` +`Second Generation Proportion` + `Average Household Size` + `Total Men Proportion`  + `Post Secondary Education Proportion` + `Visible Minority Proportion`, data = df)
+
+ols_cpc = lm(`CPC Vote Share` ~ `Proportion of population aged between 20 and 29`  + `Proportion of population aged between 50 and 65` + `Proportion of population aged 65 and above` +`First Generation Proportion` +`Second Generation Proportion` + `Average Household Size` + `Total Men Proportion`  + `Post Secondary Education Proportion` + `Visible Minority Proportion`, data = df)
+
+ols_ndp = lm(`NDP Vote Share` ~ `Proportion of population aged between 20 and 29` + `Proportion of population aged between 50 and 65` + `Proportion of population aged 65 and above` +`First Generation Proportion` +`Second Generation Proportion` + `Average Household Size` + `Total Men Proportion`  + `Post Secondary Education Proportion` + `Visible Minority Proportion`, data = df)
+
+summary(ols_lpc)$coefficients %>%
+  kbl(caption = "Table 4a: Coefficients of OLS Model for LPC Vote Share") %>%
+  kable_material_dark()
+
+summary(ols_cpc)$coefficients %>%
+  kbl(caption = "Table 4b: Coefficients of OLS Model for CPC Vote Share") %>%
+  kable_material_dark()
+
+summary(ols_ndp)$coefficients %>%
+  kbl(caption = "Table 4c: Coefficients of OLS Model for NDP Vote Share") %>%
+  kable_material_dark()
+
+```
+
+
+For all the parties, the different age groups have statistically significant coefficients, with the exception of 65 and above for the LPC and CPC and 50-65 for the NDP. The reference group is proportion of population aged 30 to 49. Furthermore, the proportion of populaton that is first generation and proportion of population that is second generation are both statistically insignificant for the LPC vote share, both statistically significant for the CPC vote share, and only second generation is statistically significant for NDP's vote share. Average household size is statistically significant for all three parties' vote share. Proportion of population that is visible minority is statistically significant for the CPC's vote share but insignificant for the LPC and NDP's vote share. All the variables are statistically significant for atleast one party's vote share, and I want to learn more about the relationship between all these variables and vote share of all three parties, so all these variables will be covariates for the spatial models.
+
+The spatial models in this analysis are the SAR Lag, SAR Error, SAR Lag-Error and CAR models.
+
+The SAR lag model takes the form of $Y =\rho WY + X\beta + \epsilon$. True to its name, what separates it from my classic OLS model is the addition of the lag term $\rho WY$, where $\rho$ is a spatial weight and $W$ is the row-standardized queen weight matrix I have. In addition, I still have my covariates $X$ and I fit the coefficient parameters in the $\beta$ vector. $\epsilon \sim N(0, \sigma^2 I)$ is the error term as usual. Importantly, I do not have a lag for the covariates. By spatially lagging $Y$ with the weight matrix $W$, each unit is influenced by a neighbouring unit. To fit the mode, the ML log-likelihood has to be maximized with respect to $\rho$, $\beta$ and $\sigma^2$. The ML log-likelihood is $l(\rho, \beta, \sigma^2) = -\frac{n}{2}\log(2\pi\sigma^2) + \log|I - \rho W| - \frac{1}{2\sigma^2} r'r$.
+
+The SAR Error model takes the form $Y = X \beta + u$ where $u = \lambda W u + \epsilon$. Instead of spatially lagging $Y$, I spatially lag the error term. This allows us to focus on the relationship between $Y$ and the covariates since $E[Y] = X\beta$, and it's the error terms that have to account for spatial patterns. $\lambda$ is a special weight, $W$ is the weight matrix, $\epsilon \sim N(0, \sigma^2 I)$ is the final error term in addition to my linear model $X \beta$ where $X$ is covariate matrix and $\beta$ is the vector of the coefficient parameters, as usual. The log likelihood is $l(\lambda, \beta, \sigma^2) = - \frac{n}{2} \log(2 \pi \sigma^2) + \log|1 - \lambda W| - \frac{1}{2 \sigma^2} e' e$, and I can estimate the parameters $\lambda, \beta, \sigma^2$ by maximizing the log-likelihood with respect to these parameters. 
+
+
+The SAR Spatial Lag-Error model combines the previous two models. I now have both a spatial lag in the mean and spatial autoregression in the errors. Each unit is influenced by neighbouring units and each unit shares similar error patterns with neighbouring units. The model is  $Y = \rho W Y  + X\beta + u$ where $u = \lambda W u + \epsilon$. $\rho$ captures the spatial pattern and $\lambda$ captures the pattern of the errors controlling for $X$ and $\rho W Y$. Recall that $X$ is the covariate matrix, $\beta$ is coefficient parameter vector, $W$ is the weight matrix and $\epsilon \sim N(0, \sigma^2 I)$ is the final error term. To estimate $\rho, \lambda, \beta, \sigma^2$, I must maximize with respect to these parameters the log-likelihood $l(\rho, \lambda, \beta, \sigma^2) = -\frac{n}{2} \log (2 \pi \sigma^2 ) + \log|I - \rho W| + \log|I - \lambda W| - \frac{1}{2\sigma^2} e'e$. 
+
+CAR models use conditional distributions instead of the joint distributions I see in SAR models. I assume $Y_i | Y_{-i} \sim N(\mu_i + \sum_{j \in N_i}c_{ij} (Y_j - \mu_j), \sigma_i^2)$, $\mu_i = x_i^T \beta$. I have that $c_{ii} = 0$ and $c_{ij} \neq 0$ . I also require $\sigma_i^2 c_{ij} = \sigma_j^2 c_{ji}$. Under this, I have the joint distribution $Y \sim N(X\beta, Q^{-1})$, $Q$ is sparse. I have two ways to estimate the parameters. The Bayesian way is to have prior distributions for $\beta, \tau,\rho$ and sample or find a posterior. The frequentist way is to maximize the likelihood $l(\beta, \tau, \rho) = - \frac{1}{2} \log |Q|- \frac{1}{2} (Y - X \beta)^T Q(Y - X \beta) + C$ for some constant $C$. 
+
+Tables 5a, 5b and 5c report the coefficients for each spatial model for the vote share of the LPC, CPC and NDP respectively.
+
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+formula_lpc = `LPC Vote Share` ~ `Proportion of population aged between 20 and 29`  + `Proportion of population aged between 50 and 65` + `Proportion of population aged 65 and above`  +`First Generation Proportion` +`Second Generation Proportion` + `Average Household Size` + `Total Men Proportion`  + `Post Secondary Education Proportion` + `Visible Minority Proportion`
+
+formula_cpc = `CPC Vote Share` ~ `Proportion of population aged between 20 and 29`  + `Proportion of population aged between 50 and 65` + `Proportion of population aged 65 and above`  +`First Generation Proportion` +`Second Generation Proportion` + `Average Household Size` + `Total Men Proportion`  + `Post Secondary Education Proportion` + `Visible Minority Proportion`
+
+formula_ndp = `NDP Vote Share` ~ `Proportion of population aged between 20 and 29`  + `Proportion of population aged between 50 and 65` + `Proportion of population aged 65 and above`  +`First Generation Proportion` +`Second Generation Proportion` + `Average Household Size` + `Total Men Proportion`  + `Post Secondary Education Proportion` + `Visible Minority Proportion`
+
+sarlag_lpc = lagsarlm(formula = formula_lpc, data = df, listw = queen_w)
+sarerr_lpc = spautolm(formula = formula_lpc, data = df, listw =  queen_w)
+sarlagerr_lpc = sacsarlm(formula = formula_lpc, data = df, listw =  queen_w)
+car_lpc = spautolm(formula = formula_lpc, data = df, listw =  queen_w, family = "CAR")
+
+sarlag_cpc = lagsarlm(formula = formula_cpc, data = df, listw = queen_w)
+sarerr_cpc = spautolm(formula = formula_cpc, data = df, listw =  queen_w)
+sarlagerr_cpc = sacsarlm(formula = formula_cpc, data = df, listw =  queen_w)
+car_cpc = spautolm(formula = formula_cpc, data = df, listw =  queen_w, family = "CAR")
+
+sarlag_ndp = lagsarlm(formula = formula_ndp, data = df, listw = queen_w)
+sarerr_ndp = spautolm(formula = formula_ndp, data = df, listw =  queen_w)
+sarlagerr_ndp = sacsarlm(formula = formula_ndp, data = df, listw =  queen_w)
+car_ndp = spautolm(formula = formula_ndp, data = df, listw =  queen_w, family = "CAR")
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+models_lpc = data.frame(
+  ols = round(c(ols_lpc$coefficients[1], ols_lpc$coefficients[2],
+                ols_lpc$coefficients[3], ols_lpc$coefficients[4],
+                ols_lpc$coefficients[5], ols_lpc$coefficients[6],
+                ols_lpc$coefficients[7],ols_lpc$coefficients[8],
+                ols_lpc$coefficients[9], ols_lpc$coefficients[10]), 3),
+  sarl =round(c(sarlag_lpc$coefficients[1], sarlag_lpc$coefficients[2], 
+                sarlag_lpc$coefficients[3], sarlag_lpc$coefficients[4],
+                sarlag_lpc$coefficients[5], sarlag_lpc$coefficients[6],
+                sarlag_lpc$coefficients[7], sarlag_lpc$coefficients[8], 
+                sarlag_lpc$coefficients[9], sarlag_lpc$coefficients[10]), 3),
+  sare = round(c(summary(sarerr_lpc)$Coef[1], summary(sarerr_lpc)$Coef[2],
+                 summary(sarerr_lpc)$Coef[3], summary(sarerr_lpc)$Coef[4], 
+                 summary(sarerr_lpc)$Coef[5], summary(sarerr_lpc)$Coef[6], 
+                 summary(sarerr_lpc)$Coef[7], summary(sarerr_lpc)$Coef[8],
+                 summary(sarerr_lpc)$Coef[9], summary(sarerr_lpc)$Coef[10]), 3),
+  sarle = round(c(summary(sarlagerr_lpc)$Coef[1], summary(sarlagerr_lpc)$Coef[2],
+               summary(sarlagerr_lpc)$Coef[3], summary(sarlagerr_lpc)$Coef[4], 
+               summary(sarlagerr_lpc)$Coef[5], summary(sarlagerr_lpc)$Coef[6], 
+               summary(sarlagerr_lpc)$Coef[7], summary(sarlagerr_lpc)$Coef[8],
+               summary(sarlagerr_lpc)$Coef[9], summary(sarlagerr_lpc)$Coef[10]), 3),
+  car = round(c(summary(car_lpc)$Coef[1], summary(car_lpc)$Coef[2],
+               summary(car_lpc)$Coef[3], summary(car_lpc)$Coef[4], 
+               summary(car_lpc)$Coef[5], summary(car_lpc)$Coef[6], 
+               summary(car_lpc)$Coef[7], summary(car_lpc)$Coef[8],
+               summary(car_lpc)$Coef[9], summary(car_lpc)$Coef[10]), 3)
+)
+models_cpc = data.frame(
+  ols = round(c(ols_cpc$coefficients[1], ols_cpc$coefficients[2],
+              ols_cpc$coefficients[3], ols_cpc$coefficients[4],
+              ols_cpc$coefficients[5], ols_cpc$coefficients[6],
+              ols_cpc$coefficients[7],ols_cpc$coefficients[8],
+              ols_cpc$coefficients[9], ols_cpc$coefficients[10]), 3),
+  sarl =round(c(sarlag_cpc$coefficients[1], sarlag_cpc$coefficients[2], 
+                sarlag_cpc$coefficients[3], sarlag_cpc$coefficients[4],
+                sarlag_cpc$coefficients[5], sarlag_cpc$coefficients[6],
+                sarlag_cpc$coefficients[7], sarlag_cpc$coefficients[8], 
+                sarlag_cpc$coefficients[9], sarlag_cpc$coefficients[10]), 3),
+  sare = round(c(summary(sarerr_cpc)$Coef[1], summary(sarerr_cpc)$Coef[2],
+                 summary(sarerr_cpc)$Coef[3], summary(sarerr_cpc)$Coef[4], 
+                 summary(sarerr_cpc)$Coef[5], summary(sarerr_cpc)$Coef[6], 
+                 summary(sarerr_cpc)$Coef[7], summary(sarerr_cpc)$Coef[8],
+                 summary(sarerr_cpc)$Coef[9], summary(sarerr_cpc)$Coef[10]), 3),
+  sarle = round(c(summary(sarlagerr_cpc)$Coef[1], summary(sarlagerr_cpc)$Coef[2],
+                  summary(sarlagerr_cpc)$Coef[3], summary(sarlagerr_cpc)$Coef[4], 
+                  summary(sarlagerr_cpc)$Coef[5], summary(sarlagerr_cpc)$Coef[6], 
+                  summary(sarlagerr_cpc)$Coef[7], summary(sarlagerr_cpc)$Coef[8],
+                  summary(sarlagerr_cpc)$Coef[9], summary(sarlagerr_cpc)$Coef[10]), 3),
+  car = round(c(summary(car_cpc)$Coef[1], summary(car_cpc)$Coef[2],
+                summary(car_cpc)$Coef[3], summary(car_cpc)$Coef[4], 
+                summary(car_cpc)$Coef[5], summary(car_cpc)$Coef[6], 
+                summary(car_cpc)$Coef[7], summary(car_cpc)$Coef[8],
+                summary(car_cpc)$Coef[9], summary(car_cpc)$Coef[10]), 3)
+)
+models_ndp = data.frame(
+  ols = round(c(ols_ndp$coefficients[1], ols_ndp$coefficients[2],
+              ols_ndp$coefficients[3], ols_ndp$coefficients[4],
+              ols_ndp$coefficients[5], ols_ndp$coefficients[6],
+              ols_ndp$coefficients[7],ols_ndp$coefficients[8],
+              ols_ndp$coefficients[9], ols_ndp$coefficients[10]), 3),
+  sarl =round(c(sarlag_ndp$coefficients[1], sarlag_ndp$coefficients[2], 
+                sarlag_ndp$coefficients[3], sarlag_ndp$coefficients[4],
+                sarlag_ndp$coefficients[5], sarlag_ndp$coefficients[6],
+                sarlag_ndp$coefficients[7], sarlag_ndp$coefficients[8], 
+                sarlag_ndp$coefficients[9], sarlag_ndp$coefficients[10]), 3),
+  sare = round(c(summary(sarerr_ndp)$Coef[1], summary(sarerr_ndp)$Coef[2],
+                 summary(sarerr_ndp)$Coef[3], summary(sarerr_ndp)$Coef[4], 
+                 summary(sarerr_ndp)$Coef[5], summary(sarerr_ndp)$Coef[6], 
+                 summary(sarerr_ndp)$Coef[7], summary(sarerr_ndp)$Coef[8],
+                 summary(sarerr_ndp)$Coef[9], summary(sarerr_ndp)$Coef[10]), 3),
+  sarle = round(c(summary(sarlagerr_ndp)$Coef[1], summary(sarlagerr_ndp)$Coef[2],
+                  summary(sarlagerr_ndp)$Coef[3], summary(sarlagerr_ndp)$Coef[4], 
+                  summary(sarlagerr_ndp)$Coef[5], summary(sarlagerr_ndp)$Coef[6], 
+                  summary(sarlagerr_ndp)$Coef[7], summary(sarlagerr_ndp)$Coef[8],
+                  summary(sarlagerr_ndp)$Coef[9], summary(sarlagerr_ndp)$Coef[10]), 3),
+  car = round(c(summary(car_ndp)$Coef[1], summary(car_ndp)$Coef[2],
+                summary(car_ndp)$Coef[3], summary(car_ndp)$Coef[4], 
+                summary(car_ndp)$Coef[5], summary(car_ndp)$Coef[6], 
+                summary(car_ndp)$Coef[7], summary(car_ndp)$Coef[8],
+                summary(car_ndp)$Coef[9], summary(car_ndp)$Coef[10]), 3))
+  
+models_lpc %>%
+  kbl(col.names = c("OLS", "SAR Lag", "SAR Error", "SAR Lag Error", "CAR"), caption = "Table 5a: Spatial Models for LPC Vote Share") %>%
+  kable_material_dark()
+
+models_cpc %>%
+  kbl(col.names = c("OLS","SAR Lag", "SAR Error", "SAR Lag Error", "CAR"), caption = "Table 5b: Spatial Models for CPC Vote Share") %>%
+  kable_material_dark()
+
+models_ndp %>%
+  kbl(col.names = c("OLS","SAR Lag", "SAR Error", "SAR Lag Error", "CAR"), caption = "Table 5c: Spatial Models for NDP Vote Share") %>%
+  kable_material_dark()
+```
+
+In addition, Table 6a, 6b, 6c and 6d report the parameters pertinent to each type of model for each party.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+sarl = data.frame(
+  party = c("LPC", "CPC", "NDP"),
+  ro = c(sarlag_lpc$rho, sarlag_cpc$rho, sarlag_ndp$rho),
+  lrt = c(summary(sarlag_lpc)$LR1$statistic, summary(sarlag_cpc)$LR1$statistic, summary(sarlag_ndp)$LR1$statistic),
+   p_value = c(summary(sarlag_lpc)$LR1$p.value, summary(sarlag_cpc)$LR1$p.value, summary(sarlag_ndp)$LR1$p.value)
+)
+sarl %>%
+  kbl(col.names = c("Party", "rho", "LRT statistic", "LRT p-value"), caption = "Table 6a: Parameter Estimates for SAR Lag model") %>%
+  kable_material_dark()
+
+
+sare = data.frame(
+  party = c("LPC", "CPC", "NDP"),
+  ro = c(sarerr_lpc$lambda, sarerr_cpc$lambda, sarerr_ndp$lambda),
+  lrt = c(summary(sarerr_lpc)$LR1$statistic, summary(sarerr_cpc)$LR1$statistic, summary(sarerr_ndp)$LR1$statistic),
+  p_value =  c(summary(sarerr_lpc)$LR1$p.value, summary(sarerr_cpc)$LR1$p.value, summary(sarerr_ndp)$LR1$p.value)
+)
+sare %>%
+  kbl(col.names = c("Party", "lambda", "LRT statistic", "LRT p-value"), caption = "Table 6b: Parameter Estimates for SAR error model") %>%
+  kable_material_dark()
+
+
+sarle = data.frame(
+  party = c("LPC", "CPC", "NDP"),
+  ro = c(sarlagerr_lpc$rho, sarlagerr_cpc$rho, sarlagerr_ndp$rho),
+  lambda =  c(sarlagerr_lpc$lambda, sarlagerr_cpc$lambda, sarlagerr_ndp$lambda),
+  lrt = c(summary(sarlagerr_lpc)$LR1$statistic, summary(sarlagerr_cpc)$LR1$statistic, summary(sarlagerr_ndp)$LR1$statistic),
+  p_value = c(summary(sarlagerr_lpc)$LR1$p.value, summary(sarlagerr_cpc)$LR1$p.value, summary(sarlagerr_ndp)$LR1$p.value)
+)
+sarle %>%
+  kbl(col.names = c("Party", "rho", "lambda", "LRT statistic", "LRT p-value"), caption = "Table 6c: Parameter Estimates for SAR Lag Error model") %>%
+  kable_material_dark()
+
+car = data.frame(
+  party = c("LPC", "CPC", "NDP"),
+  lambda =  c(car_lpc$lambda, car_cpc$lambda, car_ndp$lambda),
+  lrt = c(summary(car_lpc)$LR1$statistic, summary(car_cpc)$LR1$statistic, summary(car_ndp)$LR1$statistic),
+  p_value = c(summary(car_lpc)$LR1$p.value, summary(car_cpc)$LR1$p.value, summary(car_ndp)$LR1$p.value)
+)
+car %>%
+  kbl(col.names = c("Party","lambda", "LRT statistic", "LRT p-value"), caption = "Table 6d: Parameter Estimates for CAR model") %>%
+  kable_material_dark()
+```
+
+
+The p-values are smaller than 0.05 for all three parties for all five models, so the spatial lags and error terms are statistically significant. Furthermore, for all three parties' vote share, we also want to verify that the model residuals are spatially randomly distributed. 
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+df$ols_lpc_res = residuals(ols_lpc)
+df$sarlag_lpc_res = residuals(sarlag_lpc)
+df$sarlagerr_lpc_res = residuals(sarlag_lpc)
+df$sarerr_lpc_res = residuals(sarerr_lpc)
+df$car_lpc_res = residuals(car_lpc)
+
+df$ols_cpc_res = residuals(ols_cpc)
+df$sarlag_cpc_res = residuals(sarlag_cpc)
+df$sarlagerr_cpc_res = residuals(sarlag_cpc)
+df$sarerr_cpc_res = residuals(sarerr_cpc)
+df$car_cpc_res = residuals(car_cpc)
+
+df$ols_ndp_res = residuals(ols_ndp)
+df$sarlag_ndp_res = residuals(sarlag_ndp)
+df$sarlagerr_ndp_res = residuals(sarlag_ndp)
+df$sarerr_ndp_res = residuals(sarerr_ndp)
+df$car_ndp_res = residuals(car_ndp)
+
+m_ols_lpc = moran.test(df$ols_lpc_res, queen_w)
+m_sarlag_lpc = moran.test(df$sarlag_lpc_res, queen_w)
+m_sarerr_lpc = moran.test(df$sarerr_lpc_res, queen_w)
+m_sarlagerr_lpc = moran.test(df$sarlagerr_lpc_res, queen_w)
+m_car_lpc = moran.test(df$car_lpc_res, queen_w)
+
+m_ols_cpc = moran.test(df$ols_cpc_res, queen_w)
+m_sarlag_cpc = moran.test(df$sarlag_cpc_res, queen_w)
+m_sarerr_cpc = moran.test(df$sarerr_cpc_res, queen_w)
+m_sarlagerr_cpc = moran.test(df$sarlagerr_cpc_res, queen_w)
+m_car_cpc = moran.test(df$car_cpc_res, queen_w)
+
+m_ols_ndp = moran.test(df$ols_ndp_res, queen_w)
+m_sarlag_ndp = moran.test(df$sarlag_ndp_res, queen_w)
+m_sarerr_ndp = moran.test(df$sarerr_ndp_res, queen_w)
+m_sarlagerr_ndp = moran.test(df$sarlagerr_ndp_res, queen_w)
+m_car_ndp = moran.test(df$car_ndp_res, queen_w)
+
+moran_res = data.frame(
+  model = c("OLS [LPC]", "SAR Lag [LPC]", "SAR Error [LPC]", "SAR Lag Error [LPC]", "CAR [LPC]", "OLS [CPC]", "SAR Lag [CPC]", "SAR Error [CPC]", "SAR Lag Error [CPC]", "CAR [CPC]", "OLS [NDP]", "SAR Lag [NDP]", "SAR Error [NDP]", "SAR Lag Error [NDP]", "CAR [NDP]" ),
+  moran = round(c(m_ols_lpc$estimate[1], m_sarlag_lpc$estimate[1], 
+                  m_sarerr_lpc$estimate[1], m_sarlagerr_lpc$estimate[1],
+                  m_car_lpc$estimate[1],
+                  m_ols_cpc$estimate[1], m_sarlag_cpc$estimate[1], 
+m_sarerr_cpc$estimate[1], m_sarlagerr_cpc$estimate[1],
+m_car_cpc$estimate[1], m_ols_ndp$estimate[1], m_sarlag_ndp$estimate[1], 
+m_sarerr_ndp$estimate[1], m_sarlagerr_ndp$estimate[1],
+m_car_ndp$estimate[1]), 3),
+p_value = round(c(m_ols_lpc$p.value, m_sarlag_lpc$p.value, 
+        m_sarerr_lpc$p.value, m_sarlagerr_lpc$p.value,
+        m_car_lpc$p.value,
+        m_ols_cpc$p.value, m_sarlag_cpc$p.value, 
+        m_sarerr_cpc$p.value, m_sarlagerr_cpc$p.value,
+        m_car_cpc$p.value, m_ols_ndp$p.value, m_sarlag_ndp$p.value, 
+        m_sarerr_ndp$p.value, m_sarlagerr_ndp$p.value,
+        m_car_ndp$p.value), 3)
+)
+
+moran_res %>%
+  kbl(col.names = c("Model Residuals", "Moran's I statistic", "p-value"), caption = "Table 7: Moran's I for residuals of all models") %>%
+  kable_material_dark()
+```
+ The p-values are almost 0 for each of the OLS models, so the OLS residuals show spatial autocorrelation. In addition, the only the other model whose residuals show spatial autocorrelation is the CAR model for the LPC's vote share. All the other models successfully deal with spatial autocorrelation. 
+ 
+We can now compare the different types of models and choose one to analyze.
+ 
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+lpc_metrics = data.frame(
+  model = c("SAR Lag", "SAR Error", "SAR Lag Error", "CAR"),
+  AIC = c(AIC(sarlag_lpc), AIC(sarerr_lpc), AIC(sarlagerr_lpc), AIC(car_lpc)),
+  BIC = c(BIC(sarlag_lpc), BIC(sarerr_lpc), BIC(sarlagerr_lpc), BIC(car_lpc))
+)
+
+lpc_metrics %>%
+  kbl(col.names = c("Model", "AIC", "BIC"), caption = "Table 8a: Metrics for Model Comparison [LPC]") %>%
+  kable_material_dark()
+
+cpc_metrics = data.frame(
+  model = c("SAR Lag", "SAR Error", "SAR Lag Error", "CAR"),
+  AIC = c(AIC(sarlag_cpc), AIC(sarerr_cpc), AIC(sarlagerr_cpc), AIC(car_cpc)),
+  BIC = c(BIC(sarlag_cpc), BIC(sarerr_cpc), BIC(sarlagerr_cpc), BIC(car_cpc))
+)
+
+cpc_metrics %>%
+  kbl(col.names = c("Model", "AIC", "BIC"), caption = "Table 8b: Metrics for Model Comparison [CPC]") %>%
+  kable_material_dark()
+
+ndp_metrics = data.frame(
+  model = c("SAR Lag", "SAR Error", "SAR Lag Error", "CAR"),
+  AIC = c(AIC(sarlag_ndp), AIC(sarerr_ndp), AIC(sarlagerr_ndp), AIC(car_ndp)),
+  BIC = c(BIC(sarlag_ndp), BIC(sarerr_ndp), BIC(sarlagerr_ndp), BIC(car_ndp))
+)
+
+ndp_metrics %>%
+  kbl(col.names = c("Model", "AIC", "BIC"), caption = "Table 8c: Metrics for Model Comparison [NDP]") %>%
+  kable_material_dark()
+```
+ 
+
+The CAR model for the CPC vote share has abnormally low AIC and BIC. Intuitvely, CAR models make sense for election modelling, but because the residuals of the CAR model for LPC vote share showed spatial autocorrelation, and I want to keep the model fit consistent for all three parties, I cannot proceed with the CAR model. Since the AIC and BIC is similar for all the other models across all three parties, we're going to choose the SAR Error model because we can interpret the direct effects easily and not have to worry about interpreting the indirect spatial effects from the SAR Lag model. 
+ 
+ 
+ 
+## Result
+
+Table 9 shows the direct regression effects as fitted by the SAR Error model.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+sar_error = data.frame(
+  lpc = summary(sarerr_lpc)$Coef[,1],
+  cpc = summary(sarerr_cpc)$Coef[,1],
+  ndp = summary(sarerr_ndp)$Coef[,1]
+)
+
+
+sar_error %>%
+  kbl(col.names = c("LPC", "CPC", "NDP"), caption = "Table 9: Results of the SAR Error Model for all three parties") %>%
+  kable_material_dark()
+```
+
+Starting with the age groups, a one percentage point increase in proportion of the population aged between 20 and 29 results in a 1.2% increase in the LPC expected Vote Share, 1.14% decrease in the CPC's expected Vote Share and a 0.32% increase in the NDP's expected vote share. So when people aged 30-49 are replaced by younger people aged 20-29, the area is a little more likely to vote LPC or NDP and a little less likely to vote CPC. Similarly, a one percentage point increase in proportion of the population aged between 50 and 65 results in a 0.87% increase in the LPC's expected vote share, a 0.067% decrease in the CPC's expected vote share and a 0.008% increase in the NDP's expected vote share. So when people aged 30-49 are replaced by people aged 50-65, the LPC's vote share increases while the CPC and NDP's vote share barely changes. Finally, a one percentage point increase in proportion of the population aged 65 and over results in a 0.004% increase in the LPC's vote share, a 0.1% increase in the CPC's vote share and a 0.45% decrease in the NDP's vote share. So when people aged 30-49 are replaced by people over 65, the LPC and CPC's vote share is unlikely to dramatically change but the NDP's vote share decreases.
+
+The reference group for immigrant generations is third generation or above, so a hypothetical one percent increase in other groups means a one percent decrease in the percent of the population that is third generation or above. A one percentage point increase in the proportion of first generation immigrant results in a 0.01% increase in the LPC's expected vote share, a 0.51% increase in the CPC's expected vote share and and a 0.1% decrease in the NDP's expected vote share. A one percent increase in the proportion of second generation immigrant results in a 0.02% increase in the LPC's expected vote share, a 0.17% increase in the CPC's expected vote share and a 0.29% increase in the NDP's vote share. 
+
+A one percent increase in average household size results in a 6.4% increase in the LPC's expected vote share, a 3.1% in the CPC's expected vote share and a 9.6% decrease in the NDP's expected vote share. Thus, the larger the average household size, the more the LPC and CPC gained at the expense of the NDP. 
+
+While comparing sex, we can notice that a one percent increase in proportion of men in a riding resulted in a 3.37% decrease in the LPC's expected vote share, a 1.68% increase in the CPC's expected vote share and a 0.61% increase in the NDP's vote share. A riding with a higher proportion of men results in a better performance for the CPC and a worse performance for the LPC. We can see an almost direct transfer of votes from the LPC to the CPC with an increase in proportion of men, which makes sense given the two-way race the 2025 election was. The CPC performed better amongst men and the LPC performed better amongst women while the NDP's vote was comparitavely uniform across both groups.
+
+When analyzing education status , we see that a one percent increase in the proportion of the population that completed post-secondary education results in a 0.44% increase in the expected LPC vote share, 0.2% decrease in the expected CPC vote share and a 0.3% decrease in the expected NDP vote share. The LPC enjoys a boost in vote share in a riding with more post-secondary educated people at the expense of both the CPC and NDP. 
+
+Finally, a one percent increase in the percent of population that is a visible minority results in a 0.09% increase in the expected LPC vote share, 0.38% decrease in the expected CPC vote share and a 0.04% increase in the NDP vote share. The CPC's vote share declines while the LPC and NDP's vote share marginally increases when there is a higher proportion of visible minorities. 
+
+
+## Conclusion
+
+Elections are very complex, and there are many other factors that affects a party's performance in a federal district that I couldn't take into account either because the data was not available in the census, or because I did not have the tools to handle them. An example for the latter case is ethnic groups. There are many ethnic groups in Canada, and it would have been impossible to incorporate all of them in the models.
+
+In addition, I could not include the Bloc Quebecois and Green Party of Canada in this project because the parties did not run candidates in many of the electoral districts. Perhaps another flaw of this project was the separate analysis of each political party's vote share. There are multivariate models out there that I was not familiar enough with to use, but those models may have been better suited for my research question. As mentioned before, CAR models may have been better suited for my goals because it would have helped captured local spatial autocorrelation.
+
+Using Moran's I and Geary's c, I concluded that the vote share for all three parties were spatially autocorrelated. 
+
+In the 2025 election, the LPC did well with the youngest age group (20-29) and the 50-65 age group. The CPC performed poorly with the youngest age group and saw a relatively uniform performance among people aged 30 and over. For the NDP, their vote share generally declined as the age groups got older. The LPC performed similarly across immigrant generations in the 2025 election, while the CPC performed better the later the immigrants in the federal district arrived to Canada, and the NDP performed better with second generation immigrants in particular. The CPC received more support from men than the LPC while LPC performed better in ridings with a higher proportion of women, and the NDP's vote was relatively uniform across men and women. The LPC and CPC's expected vote share increased when the average household size in a riding increased, while the NDP's expected vote share plummeted. The LPC performed better with people who recieved post-secondary education at the expense of both the CPC and NDP. The CPC performed worse with visible minorities while the LPC and NDP performed slightly better with visible minorities. 
+
+These were some of the many trends unearthed by the 2025 federal election. It is common for political parties to study these trends to reflect on their political strategy and adapt it for future elections. As such, it is helpful for voters to get a glimpse of these trends too and use them as part of facts-based political discourse. 
+
+## Data Sources
+
+Canada, E. (n.d.). 45th General Election – April 28, 2025. Elections Canada. https://www.elections.ca/content.aspx?section=ele&dir=pas/45ge&document=index&lang=e 
+
+Electoral Geography Boundary Files (45th General Election) - Canada 2025 - Open Government Portal. (n.d.). https://open.canada.ca/data/en/dataset/97a2a33c-54cc-4f2e-82c1-047ad8212f05 
+
+Government of Canada, Statistics Canada. (2023, November 15). Census Profile Downloads, 2021. https://www12.statcan.gc.ca/census-recensement/2021/dp-pd/prof/details/download-telecharger.cfm?Lang=E
