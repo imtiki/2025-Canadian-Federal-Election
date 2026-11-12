@@ -1,5 +1,4 @@
-library(leaflet)
-library(htmlwidgets)
+source("maps/setup.R")
 
 election2025 = election2025[order(election2025$ID),]
 parties = c( "#00F7FF", "blue", "#29D462", "red", "orange")

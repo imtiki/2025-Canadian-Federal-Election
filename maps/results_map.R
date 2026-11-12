@@ -1,6 +1,4 @@
-library(leaflet)
-library(htmlwidgets)
-
+source("maps/setup.R")
 
 
 lpc_pal = colorFactor(palette = "Reds", 
